@@ -9,7 +9,6 @@ from .qr import generate_qr_code
 def create_teams(request):
     num_students = request.data.get('num_students')
     num_teams = request.data.get('num_teams')
-
     if not num_students or not num_teams:
         return Response({'error': 'Please provide both number of students and teams.'}, status=status.HTTP_400_BAD_REQUEST)
 
