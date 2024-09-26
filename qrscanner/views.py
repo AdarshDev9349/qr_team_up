@@ -61,35 +61,36 @@ def assign_teams(admin_input):
 
 
 
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from .models import User
-
 @api_view(['GET'])
 def get_team_assignments(request, admin_input_id):
-    # Fetch all users that match the given admin_input_id
-    users = User.objects.filter(admin_input_id=admin_input_id).order_by('queue_position')
+    try:
+        admin_input = AdminInput.objects.get(id=admin_input_id)
+        users = User.objects.filter(admin_input=admin_input).order_by('queue_position')
 
-    # Prepare the response data
-    data = []
-    for user in users:
-        # Get the team assigned to the current user
-        current_team = user.assigned_team
-        
-        # Get all users in the same team (excluding the current user)
-        same_team_users = User.objects.filter(admin_input_id=admin_input_id, assigned_team=current_team).exclude(id=user.id)
+        # Count remaining users to join
+        remaining_to_join = admin_input.num_students - users.count()
 
-        # Get names of the other members in the same team
-        same_team_members = [team_user.name for team_user in same_team_users]
+        # Return how many users are still required
+        if remaining_to_join > 0:
+            return Response({
+                'status': 'incomplete',
+                'remaining': remaining_to_join,  # Pass how many more are needed
+                'message': f'Waiting for {remaining_to_join} more users to join.'
+            }, status=200)
 
-        # Append the user data, including the names of the other team members
-        data.append({
-            'name': user.name,
-            'phone': user.phone,
-            'team': user.assigned_team,
-            'same_team_members': same_team_members  # Names of users in the same team
-        })
+        # If all users have registered, group by team and return the data
+        team_data = {}
+        for user in users:
+            if user.assigned_team not in team_data:
+                team_data[user.assigned_team] = []
+            team_data[user.assigned_team].append({
+                'name': user.name,
+                'phone': user.phone,
+                'team': user.assigned_team
+            })
 
-    # Return the response data
-    return Response(data)
+        return Response({'status': 'complete', 'teams': team_data}, status=200)
+
+    except AdminInput.DoesNotExist:
+        return Response({'error': 'AdminInput not found'}, status=404)
 
